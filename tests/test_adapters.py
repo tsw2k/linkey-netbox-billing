@@ -1,5 +1,5 @@
-from linkey_billing.models import netbox_status_for, slugify
-from linkey_billing.sync.adapters import client_from_bm, service_from_bm
+from billmanager.models import netbox_status_for, slugify
+from billmanager.sync.adapters import client_from_bm, service_from_bm
 
 
 def test_client_from_bm_collects_alternate_keys():

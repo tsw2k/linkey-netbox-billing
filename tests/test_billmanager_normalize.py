@@ -1,4 +1,4 @@
-from linkey_billing.clients.billmanager import BillManagerClient, _as_list
+from billmanager.clients.billmanager import BillManagerClient, _as_list
 
 
 def test_normalize_unwraps_dollar_scalars():

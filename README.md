@@ -18,7 +18,7 @@ VLAN). Заложен задел под обратное направление 
 | VLAN услуги            | IPAM → vlans                    | —                             |
 
 Карта состояний услуги BillManager → status NetBox задана в
-[`models.py`](linkey_billing/models.py) (`BM_STATUS_TO_NETBOX`).
+[`models.py`](billmanager/models.py) (`BM_STATUS_TO_NETBOX`).
 
 ## Архитектура
 
@@ -120,13 +120,13 @@ ruff check .
 API ISPsystem отличается между версиями и набором модулей. До прода проверьте на
 реальной панели и при необходимости поправьте:
 
-1. **Имена функций** управления услугами в [`clients/billmanager.py`](linkey_billing/clients/billmanager.py)
+1. **Имена функций** управления услугами в [`clients/billmanager.py`](billmanager/clients/billmanager.py)
    (`service`, `service.suspend`, `service.resume`, `service.close`, `client`).
    Сверьте через swagger вашей версии или `func=desktop`.
-2. **Имена полей** в ответах — в [`sync/adapters.py`](linkey_billing/sync/adapters.py)
+2. **Имена полей** в ответах — в [`sync/adapters.py`](billmanager/sync/adapters.py)
    (`name`/`realname`, `cpu`/`vcpu`, `ip`/`ipaddr`, `vlan` и т.д.).
    Сначала посмотрите фактический ответ командой `billmanager bm-services`.
-3. **Коды состояний услуги** в `BM_STATUS_TO_NETBOX` ([`models.py`](linkey_billing/models.py)).
+3. **Коды состояний услуги** в `BM_STATUS_TO_NETBOX` ([`models.py`](billmanager/models.py)).
 4. **Формат session id** в ответе `func=auth` (`auth.id` / `auth.$id`).
 
 ## Дорожная карта

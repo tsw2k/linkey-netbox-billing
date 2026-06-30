@@ -1,4 +1,4 @@
-"""CLI интеграции. Запуск: ``billmanager <команда>`` или ``python -m linkey_billing``."""
+"""CLI интеграции. Запуск: ``billmanager <команда>`` или ``python -m billmanager``."""
 
 from __future__ import annotations
 
@@ -81,7 +81,7 @@ def serve() -> None:
 
     s = get_settings()
     uvicorn.run(
-        "linkey_billing.webhook.app:app", host=s.webhook_host, port=s.webhook_port, reload=False
+        "billmanager.webhook.app:app", host=s.webhook_host, port=s.webhook_port, reload=False
     )
 
 
