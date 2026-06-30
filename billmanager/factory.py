@@ -73,6 +73,10 @@ def build_engine(
             vm_cluster_id=vm_cluster_id,
             dry_run=s.dry_run,
             only_client=only_client,
+            ip_pool_prefix=s.netbox_ip_pool_prefix,
+            billmgr_readonly=s.billmgr_readonly,
+            set_ip_func=s.billmgr_set_ip_func,
+            ip_field=s.billmgr_ip_field,
         )
     finally:
         bm.close()

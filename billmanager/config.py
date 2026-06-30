@@ -18,6 +18,12 @@ class Settings(BaseSettings):
     billmgr_user: str
     billmgr_password: str
     billmgr_verify_tls: bool = True
+    # Запись в BillManager (back-write выданного IP). true = не писать, только логировать.
+    billmgr_readonly: bool = False
+    # Функция и поле, через которые выданный IP фиксируется на услуге.
+    # ВНИМАНИЕ: зависит от версии панели и processing-модуля — сверьте на реальной BillManager.
+    billmgr_set_ip_func: str = "service.edit"
+    billmgr_ip_field: str = "ip"
 
     # NetBox
     netbox_url: str
@@ -26,6 +32,9 @@ class Settings(BaseSettings):
     # Тег, которым помечаются все созданные/изменённые объекты (для песочницы).
     # Пусто = не тегировать. Удобно вычистить тест: фильтр по этому тегу.
     netbox_sandbox_tag: str = ""
+    # Префикс-пул, из которого NetBox выдаёт IP при подключении услуги.
+    # CIDR ("203.0.113.0/24") или числовой id префикса. Пусто = провижининг выключен.
+    netbox_ip_pool_prefix: str = ""
 
     # --- предохранитель от записи в прод ---
     # Подстроки, идентифицирующие прод-NetBox (через запятую), напр. "netbox.prod.local".

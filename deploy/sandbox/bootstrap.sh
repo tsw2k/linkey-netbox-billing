@@ -47,4 +47,14 @@ else
     echo "  tag billmanager-sandbox: создан"
 fi
 
+# Тестовый префикс-пул, из которого выдаются адреса (NETBOX_IP_POOL_PREFIX).
+POOL="${POOL_PREFIX:-203.0.113.0/24}"
+if curl -fsS -H "$H_AUTH" "${NB_URL}/api/ipam/prefixes/?prefix=${POOL}" | grep -q "\"prefix\":\"${POOL}\""; then
+    echo "  prefix ${POOL}: уже есть"
+else
+    curl -fsS -X POST -H "$H_AUTH" -H "$H_JSON" "${NB_URL}/api/ipam/prefixes/" \
+        -d "{\"prefix\":\"${POOL}\",\"status\":\"active\",\"description\":\"sandbox pool\"}" >/dev/null
+    echo "  prefix ${POOL}: создан"
+fi
+
 echo "Готово. Скопируйте deploy/sandbox/env.sandbox.example в .env для тестов."

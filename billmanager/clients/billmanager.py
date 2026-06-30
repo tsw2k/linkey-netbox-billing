@@ -163,6 +163,23 @@ class BillManagerClient:
     def get_client(self, elid: str | int) -> dict[str, Any]:
         return self.call("client.edit", elid=elid)
 
+    def set_service_ip(
+        self,
+        elid: str | int,
+        ip: str,
+        *,
+        func: str = "service.edit",
+        field: str = "ip",
+    ) -> dict[str, Any]:
+        """Зафиксировать выданный NetBox'ом IP на услуге в биллинге.
+
+        Реализовано как редактирование услуги: func + поле с адресом + sok=ok
+        (BillManager подтверждает форму редактирования через sok). Конкретные func
+        и имя поля зависят от версии панели/processing-модуля — задаются настройками
+        BILLMGR_SET_IP_FUNC / BILLMGR_IP_FIELD.
+        """
+        return self.call(func, elid=elid, sok="ok", **{field: ip})
+
     def suspend_service(self, elid: str | int) -> dict[str, Any]:
         return self.call("service.suspend", elid=elid)
 

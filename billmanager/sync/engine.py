@@ -49,6 +49,10 @@ class SyncEngine:
         vm_cluster_id: int | None = None,
         dry_run: bool = False,
         only_client: str | None = None,
+        ip_pool_prefix: str = "",
+        billmgr_readonly: bool = False,
+        set_ip_func: str = "service.edit",
+        ip_field: str = "ip",
     ) -> None:
         self.bm = bm
         self.nb = nb
@@ -56,6 +60,11 @@ class SyncEngine:
         self.dry_run = dry_run
         # Если задан — обрабатывать только этого клиента и его услуги (для тестов).
         self.only_client = str(only_client) if only_client else None
+        # Провижининг IP: пул-префикс NetBox + запись адреса обратно в BillManager.
+        self.ip_pool_prefix = ip_pool_prefix or ""
+        self.billmgr_readonly = billmgr_readonly
+        self.set_ip_func = set_ip_func
+        self.ip_field = ip_field
 
     # --- публичные операции --------------------------------------------
 
@@ -123,17 +132,20 @@ class SyncEngine:
                 )
             tenant_id = getattr(tenant, "id", None)
 
+            will_provision = not service.ip_addresses and bool(self.ip_pool_prefix)
             if self.dry_run:
                 log.info(
                     "sync.service.dry_run",
                     name=service.name,
                     bm_id=service.bm_id,
                     status=nb_status,
-                    ips=service.ip_addresses,
+                    existing_ips=service.ip_addresses,
+                    provision_from=self.ip_pool_prefix if will_provision else None,
+                    bm_writeback=not self.billmgr_readonly if will_provision else False,
                     vlan=service.vlan_id,
                 )
                 result.services += 1
-                result.ips += len(service.ip_addresses)
+                result.ips += len(service.ip_addresses) or (1 if will_provision else 0)
                 result.vlans += 1 if service.vlan_id else 0
                 return result
 
@@ -158,20 +170,57 @@ class SyncEngine:
                 )
                 result.vlans += 1
 
-            for ip in service.ip_addresses:
-                self.nb.upsert_ip(
-                    address=_with_mask(ip),
-                    tenant_id=tenant_id,
-                    bm_service_id=service.bm_id,
-                    status="active" if nb_status == "active" else "deprecated",
-                    description=f"BillManager service {service.bm_id}",
-                )
-                result.ips += 1
+            if service.ip_addresses:
+                # IP уже есть в биллинге → отражаем их в NetBox (read-side).
+                for ip in service.ip_addresses:
+                    self.nb.upsert_ip(
+                        address=_with_mask(ip),
+                        tenant_id=tenant_id,
+                        bm_service_id=service.bm_id,
+                        status="active" if nb_status == "active" else "deprecated",
+                        description=f"BillManager service {service.bm_id}",
+                    )
+                    result.ips += 1
+            elif self.ip_pool_prefix:
+                # IP нет → выдаём из NetBox и фиксируем в биллинге (provision-side).
+                self._provision_ip(service, tenant_id, nb_status, result)
         except Exception as exc:  # noqa: BLE001
             msg = f"service {service.bm_id}: {exc}"
             log.error("sync.service.error", error=msg)
             result.errors.append(msg)
         return result
+
+    def _provision_ip(
+        self, service: Service, tenant_id: int | None, nb_status: str, result: SyncResult
+    ) -> None:
+        """Выдать IP из пула NetBox и записать его обратно на услугу в BillManager.
+
+        Идемпотентно: если услуге уже выдан адрес (по billmanager_id), переиспользуем
+        его и не выдаём новый.
+        """
+        existing = self.nb.find_ip_by_bm_service(service.bm_id)
+        if existing:
+            address = existing.address
+            log.info("provision.ip.reuse", bm_id=service.bm_id, address=address)
+        else:
+            obj = self.nb.allocate_ip_from_prefix(
+                self.ip_pool_prefix,
+                tenant_id=tenant_id,
+                bm_service_id=service.bm_id,
+                status="active" if nb_status == "active" else "deprecated",
+                description=f"BillManager service {service.bm_id}",
+            )
+            address = obj.address
+            result.ips += 1
+
+        bare = str(address).split("/")[0]  # биллингу обычно нужен адрес без маски
+        if self.billmgr_readonly:
+            log.info("provision.bm_writeback.skipped_readonly", bm_id=service.bm_id, ip=bare)
+            return
+        self.bm.set_service_ip(
+            service.bm_id, bare, func=self.set_ip_func, field=self.ip_field
+        )
+        log.info("provision.bm_writeback.ok", bm_id=service.bm_id, ip=bare)
 
 
 def _with_mask(ip: str) -> str:

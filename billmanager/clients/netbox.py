@@ -84,6 +84,51 @@ class NetBoxClient:
     def get_ip(self, address: str) -> Any | None:
         return self.api.ipam.ip_addresses.get(address=address)
 
+    def find_ip_by_bm_service(self, bm_service_id: str | int) -> Any | None:
+        """Уже выданный этой услуге адрес (по custom field), чтобы не выдать второй."""
+        return self.api.ipam.ip_addresses.get(cf_billmanager_id=str(bm_service_id))
+
+    def _get_prefix(self, prefix: str) -> Any | None:
+        prefix = str(prefix).strip()
+        if prefix.isdigit():
+            return self.api.ipam.prefixes.get(int(prefix))
+        return self.api.ipam.prefixes.get(prefix=prefix)
+
+    def allocate_ip_from_prefix(
+        self,
+        prefix: str,
+        *,
+        tenant_id: int | None = None,
+        bm_service_id: str | int | None = None,
+        status: str = "active",
+        description: str = "",
+        dns_name: str = "",
+    ) -> Any:
+        """Выдать следующий свободный IP из префикса-пула (IPAM available-ips).
+
+        prefix — CIDR ("203.0.113.0/24") или числовой id префикса NetBox.
+        Возвращает созданный объект ip-address (с полем .address вида "X/маска").
+        """
+        pfx = self._get_prefix(prefix)
+        if pfx is None:
+            raise ValueError(f"префикс-пул не найден в NetBox: {prefix!r}")
+        payload: dict[str, Any] = {
+            "status": status,
+            "description": description,
+            "custom_fields": {},
+        }
+        if tenant_id is not None:
+            payload["tenant"] = tenant_id
+        if bm_service_id is not None:
+            payload["custom_fields"][CF_BM_ID] = str(bm_service_id)
+        if dns_name:
+            payload["dns_name"] = dns_name
+        payload = self._tagged(payload)
+        # POST /api/ipam/prefixes/{id}/available-ips/ — атомарно берёт следующий свободный
+        ip = pfx.available_ips.create(payload)
+        log.info("netbox.ip.allocated", address=ip.address, bm_id=bm_service_id, prefix=prefix)
+        return ip
+
     def upsert_ip(
         self,
         *,
