@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Защита от случайного коммита секретов.
+# Активация (один раз на клон):  git config core.hooksPath .githooks
+set -euo pipefail
+
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+[ -z "$staged" ] && exit 0
+
+fail() { echo "❌ pre-commit: $1" >&2; echo "   Коммит остановлен. Уберите секрет из индекса (git restore --staged <файл>)." >&2; exit 1; }
+
+# 1. Файлы-секреты по имени (кроме .env.example)
+while IFS= read -r f; do
+    case "$f" in
+        .env.example) ;;
+        .env|.env.*|*.pem|*.key|*.p12|*.pfx|secrets.*|credentials.*)
+            fail "попытка закоммитить файл с секретами: $f" ;;
+    esac
+done <<< "$staged"
+
+# 2. Похожие на реальные значения секреты в добавляемых строках.
+#    Игнорируем плейсхолдеры (.env.example, changeme, <...>, и т.п.).
+secret_re='(password|passwd|secret|token|api[_-]?key)[[:space:]]*[=:][[:space:]]*[^[:space:]]+'
+placeholder_re='changeme|example|<[^>]+>|your[_-]|placeholder|xxxx|0123456789abcdef|=[[:space:]]*$'
+
+while IFS= read -r f; do
+    [ "$f" = ".env.example" ] && continue
+    [ -f "$f" ] || continue
+    added=$(git diff --cached -U0 -- "$f" | grep -E '^\+' | grep -v '^\+\+\+' || true)
+    if echo "$added" | grep -iEq "$secret_re"; then
+        if echo "$added" | grep -iE "$secret_re" | grep -ivEq "$placeholder_re"; then
+            fail "в $f найдено похожее на реальный секрет значение"
+        fi
+    fi
+done <<< "$staged"
+
+exit 0

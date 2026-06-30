@@ -46,7 +46,13 @@ BillManager ──┐                         ┌── REST ──> NetBox
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
 cp .env.example .env   # заполните реальными значениями
+git config core.hooksPath .githooks   # включить защиту от коммита секретов
 ```
+
+> **Секреты.** Реальные креды хранятся только в `.env`, который в `.gitignore` и
+> в репозиторий не попадает (коммитится лишь `.env.example` с заглушками).
+> Pre-commit hook в `.githooks/` дополнительно блокирует случайный коммит `.env`,
+> ключей и строк, похожих на реальные пароли/токены.
 
 ## Подготовка NetBox
 
