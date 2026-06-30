@@ -1,0 +1,40 @@
+[Unit]
+Description=linkey-netbox-billing webhook receiver (BillManager <-> NetBox)
+Documentation=https://github.com/tsw2k/linkey-netbox-billing
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=billmanager
+Group=billmanager
+
+# Каталог с кодом и .env (pydantic читает .env из WorkingDirectory)
+WorkingDirectory=/opt/linkey-netbox-billing
+ExecStart=/opt/linkey-netbox-billing/.venv/bin/billmanager serve
+
+Restart=on-failure
+RestartSec=5
+# Дать сервису "прогреться" перед тем как считать запуск успешным
+TimeoutStartSec=30
+
+# --- Изоляция / hardening ---
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+# Сервису некуда писать на диск — весь FS только для чтения, кроме ничего.
+# Если позже добавится лог-файл/кэш — добавьте ReadWritePaths=.
+
+# --- Логи ---
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=billmanager-webhook
+
+[Install]
+WantedBy=multi-user.target

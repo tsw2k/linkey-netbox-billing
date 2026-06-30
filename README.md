@@ -94,6 +94,14 @@ billmanager serve
   Обработчик пока только валидирует и логирует — точка расширения под обратное
   направление.
 
+## Деплой
+
+Продакшен-вариант — webhook-демон под **systemd** за **nginx с TLS**. Готовые
+файлы и пошаговая инструкция: [`deploy/DEPLOY.md`](deploy/DEPLOY.md).
+
+* [`deploy/billmanager-webhook.service`](deploy/billmanager-webhook.service) — systemd-юнит.
+* [`deploy/nginx-billmanager.conf`](deploy/nginx-billmanager.conf) — reverse-proxy + TLS, allow-лист источников.
+
 ## Тесты
 
 ```bash
@@ -122,5 +130,6 @@ API ISPsystem отличается между версиями и набором
 - [ ] Проверка маппинга на реальной панели и фикс имён func/полей
 - [ ] Обратное направление NetBox → BillManager (обработчик `/webhook/netbox`)
 - [ ] Идемпотентная сверка с удалением «осиротевших» объектов
-- [ ] Контейнеризация (Dockerfile/compose) и деплой
+- [x] Деплой webhook-демона: systemd + nginx (TLS) — см. `deploy/`
+- [ ] Контейнеризация (Dockerfile/compose)
 ```
