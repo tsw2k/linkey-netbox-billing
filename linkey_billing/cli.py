@@ -1,4 +1,4 @@
-"""CLI интеграции. Запуск: ``linkey-billing <команда>`` или ``python -m linkey_billing``."""
+"""CLI интеграции. Запуск: ``billmanager <команда>`` или ``python -m linkey_billing``."""
 
 from __future__ import annotations
 

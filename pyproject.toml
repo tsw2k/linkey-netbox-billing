@@ -24,7 +24,7 @@ dev = [
 ]
 
 [project.scripts]
-linkey-billing = "linkey_billing.cli:app"
+billmanager = "linkey_billing.cli:app"
 
 [build-system]
 requires = ["hatchling"]
