@@ -25,7 +25,7 @@ placeholder_re='changeme|example|<[^>]+>|your[_-]|placeholder|xxxx|0123456789abc
 while IFS= read -r f; do
     [ "$f" = ".env.example" ] && continue
     [ -f "$f" ] || continue
-    added=$(git diff --cached -U0 -- "$f" | grep -E '^\+' | grep -v '^\+\+\+' || true)
+    added=$(git diff --cached -U0 -- "$f" | grep '^+' | grep -v '^+++' || true)
     if echo "$added" | grep -iEq "$secret_re"; then
         if echo "$added" | grep -iE "$secret_re" | grep -ivEq "$placeholder_re"; then
             fail "в $f найдено похожее на реальный секрет значение"
