@@ -100,6 +100,36 @@ billmanager serve
   Обработчик пока только валидирует и логирует — точка расширения под обратное
   направление.
 
+## Безопасное тестирование (без прод-NetBox)
+
+Запись идёт **только в NetBox** — BillManager в этом направлении лишь читается.
+Поэтому безопасная схема: **читаем реальный BillManager** (read-only пользователь),
+а **пишем в одноразовый NetBox** в Docker. Прод NetBox не затрагивается.
+
+Три встроенных предохранителя:
+
+1. **Песочница NetBox** в Docker — [`deploy/sandbox/`](deploy/sandbox/):
+   ```bash
+   cd deploy/sandbox
+   docker compose up -d        # поднять NetBox+Postgres+Redis (UI :8000, admin/admin)
+   ./bootstrap.sh              # создать custom fields + тег billmanager-sandbox
+   cd ../.. && cp deploy/sandbox/env.sandbox.example .env   # вписать read-only креды BillManager
+   billmanager sync-all
+   # после тестов:
+   cd deploy/sandbox && docker compose down -v   # снести вместе с данными
+   ```
+2. **Авто-тег** `NETBOX_SANDBOX_TAG=billmanager-sandbox` — все созданные/изменённые
+   объекты помечаются тегом, потом легко найти и вычистить фильтром по нему.
+3. **Prod-guard** — `NETBOX_PROD_MARKERS` со списком подстрок прод-хостов. Если
+   `NETBOX_URL` совпал с маркером, запись **блокируется**, пока не задан
+   `ALLOW_PROD=true` (или флаг `--allow-prod`). `DRY_RUN=true` guard не трогает.
+
+Дополнительно — `--only-client <bm_id>` ограничивает сверку одним клиентом, чтобы
+не гонять весь биллинг при отладке.
+
+> В **проде** (запись в боевой NetBox — это норма) поставьте `ALLOW_PROD=true`
+> или оставьте `NETBOX_PROD_MARKERS` пустым.
+
 ## Деплой
 
 Продакшен-вариант — webhook-демон под **systemd** за **nginx с TLS**. Готовые
@@ -137,5 +167,6 @@ API ISPsystem отличается между версиями и набором
 - [ ] Обратное направление NetBox → BillManager (обработчик `/webhook/netbox`)
 - [ ] Идемпотентная сверка с удалением «осиротевших» объектов
 - [x] Деплой webhook-демона: systemd + nginx (TLS) — см. `deploy/`
+- [x] Безопасное тестирование: песочница NetBox, авто-тег, prod-guard, `--only-client`
 - [ ] Контейнеризация (Dockerfile/compose)
 ```

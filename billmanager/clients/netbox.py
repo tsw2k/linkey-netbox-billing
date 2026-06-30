@@ -15,6 +15,7 @@ from typing import Any
 import pynetbox
 
 from ..logging import get_logger
+from ..models import slugify
 
 log = get_logger(__name__)
 
@@ -23,7 +24,9 @@ CF_BM_STATUS = "billmanager_status"
 
 
 class NetBoxClient:
-    def __init__(self, url: str, token: str, *, verify_tls: bool = True) -> None:
+    def __init__(
+        self, url: str, token: str, *, verify_tls: bool = True, sandbox_tag: str = ""
+    ) -> None:
         self.api = pynetbox.api(url, token=token)
         if not verify_tls:
             import requests
@@ -31,6 +34,26 @@ class NetBoxClient:
             session = requests.Session()
             session.verify = False
             self.api.http_session = session
+        self._sandbox_tag = sandbox_tag or ""
+        self._tag_cache: list[dict[str, str]] | None = None
+
+    def _tags(self) -> list[dict[str, str]] | None:
+        """Список тегов для payload (или None). Тег создаётся при первом обращении."""
+        if not self._sandbox_tag:
+            return None
+        if self._tag_cache is None:
+            slug = slugify(self._sandbox_tag)
+            tag = self.api.extras.tags.get(slug=slug) or self.api.extras.tags.create(
+                name=self._sandbox_tag, slug=slug
+            )
+            self._tag_cache = [{"slug": tag.slug}]
+        return self._tag_cache
+
+    def _tagged(self, payload: dict[str, Any]) -> dict[str, Any]:
+        tags = self._tags()
+        if tags:
+            payload["tags"] = tags
+        return payload
 
     # --- tenants --------------------------------------------------------
 
@@ -47,6 +70,7 @@ class NetBoxClient:
             "description": description,
             "custom_fields": {CF_BM_ID: str(bm_id)},
         }
+        payload = self._tagged(payload)
         if existing:
             existing.update(payload)
             log.info("netbox.tenant.updated", tenant=name, bm_id=bm_id)
@@ -80,6 +104,7 @@ class NetBoxClient:
             payload["tenant"] = tenant_id
         if bm_service_id is not None:
             payload["custom_fields"][CF_BM_ID] = str(bm_service_id)
+        payload = self._tagged(payload)
         if existing:
             existing.update(payload)
             return existing
@@ -92,6 +117,7 @@ class NetBoxClient:
         payload: dict[str, Any] = {"vid": vid, "name": name}
         if tenant_id is not None:
             payload["tenant"] = tenant_id
+        payload = self._tagged(payload)
         if existing:
             existing.update(payload)
             return existing
@@ -127,6 +153,7 @@ class NetBoxClient:
         if tenant_id is not None:
             payload["tenant"] = tenant_id
         payload = {k: v for k, v in payload.items() if v is not None}
+        payload = self._tagged(payload)
         if existing:
             existing.update(payload)
             return existing

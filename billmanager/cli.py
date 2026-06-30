@@ -7,11 +7,20 @@ import json
 import typer
 
 from .config import get_settings
-from .factory import build_billmanager, build_engine
+from .factory import ProdWriteGuardError, build_billmanager, build_engine
 from .logging import configure_logging, get_logger
 
 app = typer.Typer(help="Интеграция NetBox ↔ BillManager", no_args_is_help=True)
 log = get_logger(__name__)
+
+
+def _guarded(fn):
+    """Превращает ProdWriteGuardError в аккуратный выход CLI вместо traceback."""
+    try:
+        return fn()
+    except ProdWriteGuardError as exc:
+        typer.echo(f"⛔ {exc}", err=True)
+        raise typer.Exit(2) from None
 
 
 @app.callback()
@@ -24,10 +33,22 @@ def sync_all(
     vm_cluster_id: int = typer.Option(
         None, help="ID кластера NetBox для создания VM из услуг (без него VM не создаются)"
     ),
+    only_client: str = typer.Option(
+        None, help="Обрабатывать только этого клиента BillManager (ID) — для тестов"
+    ),
+    allow_prod: bool = typer.Option(
+        False, "--allow-prod", help="Разрешить запись в прод-NetBox (см. NETBOX_PROD_MARKERS)"
+    ),
 ) -> None:
     """Полная сверка всех клиентов и услуг BillManager → NetBox."""
-    with build_engine(vm_cluster_id=vm_cluster_id) as engine:
-        result = engine.sync_all()
+
+    def run():
+        with build_engine(
+            vm_cluster_id=vm_cluster_id, only_client=only_client, allow_prod=allow_prod
+        ) as engine:
+            return engine.sync_all()
+
+    result = _guarded(run)
     typer.echo(
         f"tenants={result.tenants} services={result.services} "
         f"ips={result.ips} vlans={result.vlans} errors={len(result.errors)}"
@@ -40,10 +61,17 @@ def sync_all(
 def sync_service(
     service_id: str = typer.Argument(..., help="ID услуги в BillManager"),
     vm_cluster_id: int = typer.Option(None),
+    allow_prod: bool = typer.Option(
+        False, "--allow-prod", help="Разрешить запись в прод-NetBox (см. NETBOX_PROD_MARKERS)"
+    ),
 ) -> None:
     """Синхронизировать одну услугу по её ID."""
-    with build_engine(vm_cluster_id=vm_cluster_id) as engine:
-        result = engine.sync_service_by_id(service_id)
+
+    def run():
+        with build_engine(vm_cluster_id=vm_cluster_id, allow_prod=allow_prod) as engine:
+            return engine.sync_service_by_id(service_id)
+
+    result = _guarded(run)
     typer.echo(f"services={result.services} ips={result.ips} errors={len(result.errors)}")
 
 

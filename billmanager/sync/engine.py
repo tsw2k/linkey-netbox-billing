@@ -48,11 +48,14 @@ class SyncEngine:
         *,
         vm_cluster_id: int | None = None,
         dry_run: bool = False,
+        only_client: str | None = None,
     ) -> None:
         self.bm = bm
         self.nb = nb
         self.vm_cluster_id = vm_cluster_id
         self.dry_run = dry_run
+        # Если задан — обрабатывать только этого клиента и его услуги (для тестов).
+        self.only_client = str(only_client) if only_client else None
 
     # --- публичные операции --------------------------------------------
 
@@ -60,12 +63,17 @@ class SyncEngine:
         """Полная сверка: все клиенты и все услуги BillManager."""
         result = SyncResult()
         clients = {c.bm_id: c for c in map(client_from_bm, self.bm.list_clients())}
+        if self.only_client:
+            clients = {k: v for k, v in clients.items() if k == self.only_client}
+            log.info("sync.scope.only_client", client=self.only_client)
         log.info("sync.clients.fetched", count=len(clients))
         for client in clients.values():
             result.merge(self._sync_tenant(client))
 
         for raw in self.bm.list_services():
             service = service_from_bm(raw)
+            if self.only_client and service.client_bm_id != self.only_client:
+                continue
             client = clients.get(service.client_bm_id)
             result.merge(self._sync_service(service, client))
         log.info("sync.all.done", **_counts(result))

@@ -1,0 +1,61 @@
+# Одноразовый NetBox для безопасного тестирования интеграции.
+# Поднимает изолированный NetBox + Postgres + Redis. Прод не затрагивается.
+#
+#   cd deploy/sandbox
+#   docker compose up -d            # старт (первый запуск ~1-2 мин на миграции)
+#   ./bootstrap.sh                  # создать custom fields + sandbox-тег
+#   # ... тестируем ...
+#   docker compose down -v          # снести вместе с данными — чисто
+#
+# NetBox UI:    http://localhost:8000   (admin / admin)
+# API token:    0123456789abcdef0123456789abcdef01234567   (фиксированный, только для песочницы!)
+
+x-netbox-env: &netbox-env
+  DB_HOST: postgres
+  DB_NAME: netbox
+  DB_USER: netbox
+  DB_PASSWORD: netbox
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  REDIS_DATABASE: "0"
+  REDIS_CACHE_HOST: redis
+  REDIS_CACHE_DATABASE: "1"
+  SECRET_KEY: "sandbox-only-secret-key-change-nothing-its-disposable-000"
+  SUPERUSER_NAME: admin
+  SUPERUSER_EMAIL: admin@example.com
+  SUPERUSER_PASSWORD: admin
+  SUPERUSER_API_TOKEN: "0123456789abcdef0123456789abcdef01234567"
+  SKIP_SUPERUSER: "false"
+  ALLOWED_HOSTS: "*"
+
+services:
+  netbox:
+    image: netboxcommunity/netbox:v4.1-3.0.2
+    depends_on:
+      - postgres
+      - redis
+    environment: *netbox-env
+    ports:
+      - "8000:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/login/"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+
+  netbox-worker:
+    image: netboxcommunity/netbox:v4.1-3.0.2
+    depends_on:
+      - netbox
+    command: /opt/netbox/venv/bin/python /opt/netbox/netbox/manage.py rqworker
+    environment: *netbox-env
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: netbox
+      POSTGRES_USER: netbox
+      POSTGRES_PASSWORD: netbox
+
+  redis:
+    image: redis:7-alpine

@@ -23,6 +23,16 @@ class Settings(BaseSettings):
     netbox_url: str
     netbox_token: str
     netbox_verify_tls: bool = True
+    # Тег, которым помечаются все созданные/изменённые объекты (для песочницы).
+    # Пусто = не тегировать. Удобно вычистить тест: фильтр по этому тегу.
+    netbox_sandbox_tag: str = ""
+
+    # --- предохранитель от записи в прод ---
+    # Подстроки, идентифицирующие прод-NetBox (через запятую), напр. "netbox.prod.local".
+    # Если NETBOX_URL содержит любую из них — запись блокируется, пока не задан allow_prod.
+    netbox_prod_markers: str = ""
+    # Явное разрешение писать в прод (env ALLOW_PROD=true или флаг --allow-prod).
+    allow_prod: bool = False
 
     # Webhook
     netbox_webhook_secret: str = ""

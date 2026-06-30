@@ -19,11 +19,23 @@ done <<< "$staged"
 
 # 2. Похожие на реальные значения секреты в добавляемых строках.
 #    Игнорируем плейсхолдеры (.env.example, changeme, <...>, и т.п.).
-secret_re='(password|passwd|secret|token|api[_-]?key)[[:space:]]*[=:][[:space:]]*[^[:space:]]+'
-placeholder_re='changeme|example|<[^>]+>|your[_-]|placeholder|xxxx|0123456789abcdef|=[[:space:]]*$'
+# Значение должно быть >=6 непробельных символов, чтобы не ловить аннотации
+# типов вроде `token: str` (value "str," = 4 символа).
+secret_re='(password|passwd|secret|token|api[_-]?key)[[:space:]]*[=:][[:space:]]*[^[:space:]]{6,}'
+# Плейсхолдеры и заведомо не-секреты (аннотации типов, чтение из окружения).
+placeholder_re='changeme|example|<[^>]+>|your[_-]|placeholder|xxxx|0123456789abcdef|=[[:space:]]*$|[=:][[:space:]]*(str|int|bool|float|dict|list|None|Optional)\b|os\.|getenv|environ|Field\('
+
+# Файлы с заведомо disposable-значениями (шаблоны, локальная песочница) —
+# content-скан пропускаем, но filename-блокировка выше на них всё равно действует.
+scan_skip() {
+    case "$1" in
+        .env.example|deploy/sandbox/docker-compose.yml|deploy/sandbox/env.sandbox.example) return 0 ;;
+        *) return 1 ;;
+    esac
+}
 
 while IFS= read -r f; do
-    [ "$f" = ".env.example" ] && continue
+    scan_skip "$f" && continue
     [ -f "$f" ] || continue
     added=$(git diff --cached -U0 -- "$f" | grep '^+' | grep -v '^+++' || true)
     if echo "$added" | grep -iEq "$secret_re"; then

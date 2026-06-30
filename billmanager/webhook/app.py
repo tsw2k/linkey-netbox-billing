@@ -19,7 +19,7 @@ import hmac
 from fastapi import FastAPI, Header, HTTPException, Request
 
 from ..config import get_settings
-from ..factory import build_engine
+from ..factory import ProdWriteGuardError, build_engine
 from ..logging import configure_logging, get_logger
 
 log = get_logger(__name__)
@@ -46,8 +46,11 @@ def create_app() -> FastAPI:
         if not service_id:
             raise HTTPException(422, "не найден id услуги в payload")
         log.info("webhook.billmanager.received", service_id=service_id)
-        with build_engine(settings) as engine:
-            result = engine.sync_service_by_id(service_id)
+        try:
+            with build_engine(settings) as engine:
+                result = engine.sync_service_by_id(service_id)
+        except ProdWriteGuardError as exc:
+            raise HTTPException(403, str(exc)) from None
         return {
             "synced_service": service_id,
             "services": result.services,
